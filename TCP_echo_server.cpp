@@ -13,7 +13,7 @@ constexpr int BUFFER_SIZE = 1024;
 constexpr int BACKLOG = 10; // max pending connections in queue
 
 int main(){
-    // step 1 in TCP server creation: socket(), which returns a positive fd on success otherwise 0.
+    // step 1 in TCP server creation: socket(), which returns a positive fd on success otherwise -1.
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0){
         std::cerr << "[ERROR] socket creation failed for some reason!\n";
@@ -28,13 +28,20 @@ int main(){
     server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = htons(0); // pointing to 0.0.0.0 so that bind can accept connections arriving on any interface.
     // Also, why is sin_addr a whole struct when it could have just been a int? Type safety is one reason..
-    //... But that's coping - it's there for historical reasons mainly. Back when IP addressing was classful, and we needed byte-level access.
-    std::reinterpret_cast<struct sockaddr*>(&server_addr);
+    //... But I think that's just coping - it's there for historical reasons mainly. Back when IP addressing was classful, and we needed byte-level access.
     
-    if(bind(server_fd, server_addr, sizeof(server_addr)) < 0){
+    if(bind(server_fd, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0){
         std::cerr<<"[ERROR] bind failed on port: "<< PORT<<"\n";
         close(server_fd);
         return 1;
     }
     std::cout<<"Socket successfully bound to 0.0.0.0:"<<PORT<<"\tHurray!\n";
+
+    // step 3: listening
+    if(listen(server_fd, BACKLOG)<0){
+        std::cerr <<"[ERROR] listen() failed\n";
+        close(server_fd);
+        exit 1;
+    }
+    std::cout<<"Server is listening for incoming connections...\n";
 }
