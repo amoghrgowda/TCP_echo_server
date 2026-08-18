@@ -19,7 +19,7 @@ int main(){
         std::cerr << "[ERROR] socket creation failed for some reason!\n";
         return 1;
     }
-    // step 2: bind() associate socket with our IP and Port. Just run man bind, duh
+    // step 2: bind() associate socket with our IP and Port. (JUST READ MAN PAGES BRO)
     // The kernel has no bind(fd, IP, port) format. we have to fill it out the 1980's C-way..
     // We have to fill out the struct manually. Apparently just how it works in POSIX
     struct sockaddr_in server_addr;
@@ -41,7 +41,37 @@ int main(){
     if(listen(server_fd, BACKLOG)<0){
         std::cerr <<"[ERROR] listen() failed\n";
         close(server_fd);
-        exit 1;
+        return 1;
     }
     std::cout<<"Server is listening for incoming connections...\n";
+    
+    // for any incoming requests, the server kernel completes 3 way handshake and places it in 'accept queue'.
+    
+    // accept() extracts a client from the accept queue and provide a NEW fd.
+    struct sockaddr_in client_addr;
+
+    // this new fd helps to not lock-down the whole server for a single conversation.
+    // Basically, by separating the listening role from communication/data-transfer role.
+    socklen_t client_len = sizeof(client_addr);
+
+    std::cout<<"[INFO] accept blocking...\n";
+    int client_fd = accept(server_fd, reinterpret_cast<struct sockaddr*>(&client_addr), &client_len);
+    if(client_fd<0){
+        std::cerr<<"[ERROR] accept() failed..\n";
+        close(server_fd);
+        return 1;
+    }
+
+    //let's try and print the IP and port of the client.
+    char client_ip[16]; // 16 bytes for IPv4
+    inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, 16); // ntop just means network to presentation (human readable format)
+    uint16_t client_port = ntohs(client_addr.sin_port);
+    std::cout<<"[INFO] Client connected. IP: "<<client_ip
+            <<":"<<client_port
+            <<". Client FD="<<client_fd<<"\n";
+
+    // Echo loop here (main logic)
+    char buffer[BUFFER_SIZE];
+    close(client_fd);
+    close(server_fd);
 }
