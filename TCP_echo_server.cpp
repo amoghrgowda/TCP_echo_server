@@ -72,6 +72,46 @@ int main(){
 
     // Echo loop here (main logic)
     char buffer[BUFFER_SIZE];
-    close(client_fd);
-    close(server_fd);
+
+    //We have to loop over recv() and send() so as to make sure all data is properly read. 
+    // recv() returns as soon as a single chunk is read.
+    // send() returns as soon as the kernel buffer is full. Returns how much data was read by kernel buffer.
+    while (true) {
+        // Clear buffer before each read
+        std::memset(buffer, 0, sizeof(buffer));
+
+        // recv() blocks until the client sends data (atleast 1 byte) or closes the connection
+        ssize_t no_of_bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0); // 0 here consumes the read bytes. set it to other flags like MSG_PEEK if you want non-destructive read.
+        
+        if (no_of_bytes_received > 0) {
+            // Case 1: Data was received
+            std::cout << "[RECV] Received " << no_of_bytes_received << " with MSG: " << buffer;
+            if (buffer[no_of_bytes_received - 1] != '\n') std::cout << "\n"; // if the last recieved byte isn't a \n, add a new line manually
+
+            // Sending back the EXACT same msg back to the client
+            ssize_t bytes_sent = send(client_fd, buffer, no_of_bytes_received, 0);
+            // client-side testing of internal send buffer working: send(client_fd, "\n", sizeof("\n"),0);
+            if (bytes_sent < 0) {
+                std::cerr << "[ERROR] send() failed: " << std::strerror(errno) << "\n";
+                break;
+            }
+            std::cout << "[SEND] Echoed back " << bytes_sent << " bytes.\n";
+
+        } else if (no_of_bytes_received == 0) {
+            // Case 2: Client sent TCP FIN (called a graceful disconnect)
+            std::cout << "[INFO] Client disconnected gracefully (received EOF / FIN).\n";
+            break;
+
+        } else {
+            // Case 3: Error occurred on the socket
+            std::cerr << "[ERROR] recv() failed: " << std::strerror(errno) << "\n";
+            break;
+        }
+    }
+
+    std::cout << "[INFO] Closing sockets and exiting.\n";
+    close(client_fd);  // Closes the client TCP connection (sends FIN)
+    close(server_fd);  // Stops listening on port 8080
+
+    return 0;
 }
